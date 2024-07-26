@@ -1,0 +1,1102 @@
+---
+title: "Income inequality in the European Union and neighbouring countries."
+author: "Oliver Q.R."
+format: html
+toc: true
+toc-title: "Table of contents"
+abstract: "This project explores income inequality in the EU and neighbouring countries using data from different sources. Key findings reveal a correlation between income inequality and healthcare, education and unemployment, among other factors."
+abstract-title: "Abstract"
+number-sections: true
+code-fold: true
+code-annotations: below
+editor: visual
+---
+
+# Introduction.
+
+Income inequality, characterised by disparities in income distribution within a population, is a critical socioeconomic issue that influences the welfare and stability of a country. It can exacerbate poverty and social exclusion, potentially leading to social unrest and hindering economic growth.
+
+Understanding the factors driving income inequality is crucial for creating more equitable societies, and should be a primary focus for policymakers to promote progress and societal well-being.
+
+In this project, I aim to explore income inequality in EU and neighbouring countries and its correlation with various socioeconomic factors. Identifying and understanding the interplay between these factors and income inequality is essential to design policies aimed at reducing income disparities, thus promoting the development of better societies where all citizens have their basic needs covered in a safe and affordable manner.
+
+# Methodology.
+
+```{r, output=FALSE, warnings=FALSE}
+# loading packages
+library(tidyverse)
+library(skimr)
+library(eurostat)
+library(WDI)
+library(WHO)
+library(Rilostat)
+library(knitr)
+library(reactable)
+library(reactablefmtr)
+library(htmltools)
+library(ggtext)
+library(sf)
+library(giscoR)
+library(countrycode)
+```
+
+I used publicly available data from the following sources:
+
+-   Eurostat.
+
+-   World Bank.
+
+-   World Health Organisation.
+
+-   International Labour Organisation.
+
+-   UN Human Development Report.
+
+The packages I used to collect, process and analyse the data are:
+
+-   Tidyverse.
+
+-   Skimr.
+
+-   eurostat.
+
+-   WDI.
+
+-   WHO.
+
+-   Rilostat.
+
+-   Reactable.
+
+-   Reactablefmtr.
+
+-   htmltools.
+
+-   ggtext.
+
+-   sf.
+
+-   giscoR.
+
+-   countrycode.
+
+-   rvest.
+
+All code used can be found on: <https://github.com/qroliver>.
+
+# Data description.
+
+```{r, output=FALSE}
+# loading data
+data <- read_csv("2_Tidy data/data.csv")
+```
+
+```{r, output=FALSE}
+# data summary
+skim(data)
+```
+
+The dataset contains 1342 rows and 32 columns, which correspond with the following variables:
+
+-   *iso3c*: Three-letter country code.
+
+-   *country*: Name of the country, in English.
+
+-   *year*.
+
+-   *gini_index*: Gini coefficient of equivalised disposable income (0 for perfect equality, 100 for maximal inequality).
+
+-   *gdp_per_capita*: Gross domestic product (GDP) at market prices in current prices (euro per capita).
+
+-   *gdp_per_capita_pps*: GDP at market prices in current prices, purchasing power standard (PPS; EU27 from 2020) per capita.
+
+-   *avg_ann_unempl_rate*: Annual average unemployment rate (% population in the labour force). Unadjusted data.
+
+-   *avg_youth_unempl_rate_ann*: Annual average youth unemployment rate (% population aged 25 or younger in the labour force). Unadjusted data.
+
+-   *lt_unempl_rate*: Long-term unemployment rate (\>12 months; % population in the labour force).
+
+-   *vlt_unempl_rate*: Very long-term unemployment rate (\>24 months; % population in the labour force).
+
+-   *mean_income_pps*: Mean equivalised net income (PPS).
+
+-   *median_income_pps*: Median equivalised net income (PPS).
+
+-   *s80s20_ratio*: Income quintile share ratio S80/S20 for disposable income (income after taxes and social transfers).
+
+-   *income_real_terms*: Median income in real terms (2010 = 100).
+
+-   *at_risk_poverty*: % population at risk of poverty (income \< 60% of median equivalised income).
+
+-   *in_work_risk_poverty*: % employed persons (18+ years old) at risk of poverty.
+
+-   *mat_soc_depr_perc*: % population experiencing material or social deprivation. This is defined by inability to afford at least 5 of the indicators below.
+
+-   *housing_development_exp*: % of GDP spent by the government on housing development.
+
+-   *health_exp*: % of GDP spent by the government in healthcare.
+
+-   *education_exp*: % of GDP spent by the government in education.
+
+-   *social_protection_exp*: % of GDP spent by the government in social protection.
+
+-   *literacy_rate*: % of people aged 15+ who can both write and read with understanding a short simple statement about their everyday life.
+
+-   *uhc_cov_index*: Coverage index for essential health services, presented on a scale of 0 to 100.
+
+-   *pop_cov*: % of population covered by at least one social protection benefit.
+
+-   *poors_cov*: % poor persons covered by social protection systems.
+
+-   *ann_avg_wage*: Annual average wage (in 2021 PPP USD).
+
+-   *ihdi*: Income-adjusted Human Development Index.
+
+-   *eys*: Expected years of schooling.
+
+-   *mys*: Mean years of schooling.
+
+-   *ed_index*: Education index.
+
+-   *group*: EU27, EFTA or Other.
+
+-   *region*: Western Europe, Eastern Europe, Southern Europe, Northern Europe or Baltic states (figure 1).
+
+```{r, fig.cap="**Figure 1**. European regions used in this project."}
+# adding geography data for map plotting
+# loading Europe map data
+europe_map <- gisco_get_countries(region = "Europe", resolution = 20) %>%
+  bind_rows(gisco_get_countries(country = c("CYP", "TUR"), resolution = 20))
+
+# merging data
+data_map <- left_join(x = data,
+                      y = europe_map %>%
+                        select(iso3c = ISO3_CODE, geometry),
+                      by = "iso3c")
+
+# plotting regions
+ggplot(data_map) +
+  geom_sf(data = europe_map,
+          aes(geometry = geometry)) +
+  geom_sf(aes(geometry = geometry, fill = region)) +
+  scale_x_continuous(limits = c(-31, 42)) +
+  scale_y_continuous(limits = c(28, 71)) +
+  scale_fill_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  labs(title = "European regions.",
+       subtitle = "<span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       caption = "Modified from the UN geoscheme.") +
+  theme_minimal(base_size = 11,
+                base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none") +
+  theme(panel.grid = element_blank(),
+        axis.text = element_blank())
+```
+
+Material and social indicators:
+
+-   Inability to face unexpected expenses.
+-   Inability to afford a one-week annual holiday away from home.
+-   Inability to avoid arrears (in mortgage or rent, utility bills, hire purchase instalments, or other loan payments).
+-   Inability to afford a meal with meat, chicken, fish, or a vegetarian equivalent every second day.
+-   Inability to afford keeping their home adequately warm.
+-   Inability to afford a washing machine.
+-   Inability to afford a color TV.
+-   Inability to afford a telephone.
+-   Inability to afford a car.
+-   Inability to afford to replace worn-out furniture.
+-   Inability to afford to spend a small amount of money each week on themselves.
+-   Inability to afford regular leisure activities.
+-   Inability to get together with friends/family for a drink/meal at least once a month.
+-   Inability to have an internet connection.
+
+Each row corresponds to the observations of the variables above for a specific country and year, which the latter having a range of values from 1968 to 2024.
+
+Two of the variables are categorical nominal (*iso3c* and *country*), whereas the rest of variables (37) are numeric.
+
+# Income inequality across countries.
+
+In the year 2023, Slovakia was the country with a lower income inequality (Gini idex: 21.6), whereas Bulgaria was the one with the highest (37.2). The dataset does not provide data for Iceland, United Kingdom, Switzerland, and Turkey for the year 2023. The most recent Gini index for these countries are 24 for Iceland (2020), 32.4 for United Kingdom (2021), 31.1 for Switzerland (2022), and 45.3 for Türkiye (2022).
+
+```{r, fig.cap="**Figure 2**. Gini coefficient for selected European countries (year 2023)."}
+# plotting map - Gini index for the year 2023
+ggplot(data_map %>%
+         filter(year == 2023,
+                !is.na(gini_index))) +
+  geom_sf(data = europe_map,
+          aes(geometry = geometry)) +
+  geom_sf(aes(geometry = geometry, fill = gini_index)) +
+  scale_x_continuous(limits = c(-31, 42)) +
+  scale_y_continuous(limits = c(28, 71)) +
+  scale_fill_gradient2(low = "#004529", mid = "yellow", high = "darkred",
+                       midpoint = mean(data_map$gini_index, na.rm = TRUE)) +
+  labs(title = "Gini index - Year 2023",
+       x = element_blank(),
+       y = element_blank(),
+       caption = "Data source: Eurostat",
+       fill = "Gini index") +
+  theme_minimal(base_size = 11,
+                base_family = "sans") +
+  theme(panel.grid = element_blank(),
+        axis.text = element_blank(),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.title = element_text(face = "bold"))
+```
+
+Looking at a regional level (figure 2), Baltic countries and Southern European countries are the ones with higher income inequality. On the other side, Nordic and Central European countries in general tend to have less income inequality.
+
+# Socioeconomic factors that correlate with income inequality.
+
+What are the factors included in the dataset that correlate with income inequality (measured using the Gini index)? As a first approach to this question, I will calculate the Pearson correlation coefficient between each variable and the Gini index (keeping in mind that the relationship between them might not be linear), using the data for all years in the dataset.
+
+```{r, fig.cap="**Figure 3**. Pearson correlation coefficient of each variable and the Gini index."}
+# correlation analysis
+ggplot(data %>%
+         select(where(is.numeric), -year) %>%
+         filter(!is.na(gini_index)) %>%
+         summarise(across(everything(), ~cor(gini_index, .x, use = "complete.obs"))) %>%
+         pivot_longer(cols = everything(), names_to = "variable", values_to = "corr_coeff") %>%
+         arrange(desc(corr_coeff)) %>%
+         slice(-1),
+       aes(x = corr_coeff, y = fct_reorder(variable, corr_coeff, .desc = FALSE), fill = corr_coeff)) +
+  geom_col(colour = "black") +
+  scale_fill_gradient2(low = "darkblue", mid = "#ffffbf", high = "darkred") +
+  scale_y_discrete(expand = expansion(mult = c(0.025, 0.025)),
+                   labels = c("s80s20_ratio" = "Income S80/S20 ratio",
+                              "at_risk_poverty" = "Pop. at risk of poverty",
+                              "in_work_risk_poverty" = "In-work pop. at risk of poverty",
+                              "mat_soc_depr_perc" = "Pop. exp. material and social deprivation",
+                              "avg_ann_unempl_rate" = "Unemployment rate",
+                              "lt_unempl_rate" = "Long-term unemployment",
+                              "avg_youth_unempl_rate_ann" = "Youth unemployment rate",
+                              "vlt_unempl_rate" = "Very long-term unemployment",
+                              "income_real_terms" = "Income in real terms",
+                              "housing_development_exp" = "Gov. expend. in housing development",
+                              "ann_avg_wage" = "Average wage",
+                              "poors_cov" = "Poors covered by protection systems",
+                              "eys" = "Expected years of schooling",
+                              "social_protection_exp" = "Gov. expend. in social protection",
+                              "pop_cov" = "Pop. covered by protection systems",
+                              "literacy_rate" = "Literacy rate",
+                              "gdp_capita_pps" = "GDP per capita (PPS)",
+                              "gdp_per_capita" = "GDP per capita",
+                              "education_exp" = "Gov. expend. in education",
+                              "mean_income_pps" = "Mean income (PPS)",
+                              "mys" = "Mean years of schooling",
+                              "ed_index" = "Education index",
+                              "health_exp" = "Gov. expend. in healthcare",
+                              "uhc_cov_index" = "UHC coverage index",
+                              "median_income_pps" = "Median income (PPS)",
+                              "ihdi" = "Inequality-adjusted Human Development Index")) +
+  scale_x_continuous(limits = c(-1, 1)) +
+  labs(title = "Correlation with the Gini index",
+       subtitle = "Pearson correlation coefficient",
+       x = "Pearson correlation coefficient",
+       y = element_blank(),
+       fill = element_blank(),
+       caption = "Data source: Eurostat, World Bank, WHO, ILO, UNHDR.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(face = "bold"),
+        legend.position = "none")
+```
+
+Greater income inequality is correlated with a higher S80/S20 ratio for disposable income, a greater percentage of population at risk of poverty, higher unemployment rates, etc. On the other hand, a higher Human Development Index, greater income, better healthcare coverage, better education, etc. correlate with lower income inequality (figure 3).
+
+Many of the relationships above follow a linear trend (even when looking at the data corresponding to all years together), like the ones with the percentage of population at risk of poverty or the S80/S20 ratio for disposable income, for example (figure 4).
+
+```{r, fig.cap="**Figure 4**. Pairwise correlation plots with the Gini index."}
+# pairwise correlation plots
+data %>%
+  select(where(is.numeric), -year) %>%
+  pivot_longer(cols = -gini_index, names_to = "variable", values_to = "value") %>%
+  filter(!is.na(value), !is.na(gini_index)) %>%
+  ggplot(aes(x = gini_index, y = value)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(vars(variable),
+             ncol = 5,
+             scales = "free_y", 
+             labeller = labeller(variable = c("s80s20_ratio" = "Inc. S80/S20",
+                                              "at_risk_poverty" = "At risk poverty",
+                                              "in_work_risk_poverty" = "In-work risk pov.",
+                                              "mat_soc_depr_perc" = "Mat. & soc. depr.",
+                                              "avg_ann_unempl_rate" = "Unempl. rate",
+                                              "lt_unempl_rate" = "LT unempl.",
+                                              "avg_youth_unempl_rate_ann" = "Youth unempl.",
+                                              "vlt_unempl_rate" = "Very LT unempl.",
+                                              "income_real_terms" = "Inc. real terms",
+                                              "housing_development_exp" = "Gov. housing",
+                                              "ann_avg_wage" = "Average wage",
+                                              "poors_cov" = "Poors cov. prot.",
+                                              "eys" = "Exp. y. school.",
+                                              "social_protection_exp" = "Gov. soc. prot.",
+                                              "pop_cov" = "Pop. cov. prot.",
+                                              "literacy_rate" = "Literacy rate",
+                                              "gdp_capita_pps" = "GDP cap. PPS",
+                                              "gdp_per_capita" = "GDP capita",
+                                              "education_exp" = "Gov. education",
+                                              "mean_income_pps" = "Mean inc. (PPS)",
+                                              "mys" = "Mean y. school.",
+                                              "ed_index" = "Educ. index",
+                                              "health_exp" = "Gov. healthcare",
+                                              "uhc_cov_index" = "UHC cov. index",
+                                              "median_income_pps" = "Med. inc. (PPS)",
+                                              "hdi" = "HDI"))) +
+  labs(title = "Pairwise correlation plots",
+       subtitle = "Pearson correlation coefficients",
+       x = "Gini index",
+       y = "Value",
+       caption = "Data: Eurostat, World Bank, WHO, ILO, UNHDR.") +
+  theme_classic(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(face = "bold"))
+```
+
+# Analysis of socioeconomic factors highly correlated with income inequality.
+
+## Evolution of the income inequality over time.
+
+On average, income inequality has decreased over the last 10-15 years in most regions when looking at the aggregated data (figure 5). Looking at individual regions, there are some differences in the trend over time. Eastern European countries saw a steep increase in income inequality on average after the collapse of the Soviet Union, reaching a maximum by the late 00s of this century. After that peak, income inequality has decreased considerably but it is still far from the level it was in the early 90s (although very close to the levels of Western and Northern Europe).
+
+```{r, fig.cap="**Figure 5**. Evolution of the Gini index by region over time.", warning=FALSE, message=FALSE}
+# evolution of the Gini index over time by region
+ggplot(data %>%
+         filter(!is.na(gini_index)) %>%
+         group_by(region, year) %>%
+         summarise(gini_index = mean(gini_index, na.rm = TRUE)),
+       aes(x = year, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3, alpha = 0.3) +
+  geom_smooth(se = FALSE, linewidth = 1) +
+  scale_x_continuous(breaks = seq(1970, 2024, 5)) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Evolution of the Gini index over time",
+       x = "Year",
+       y = "Gini index",
+       caption = "Data source: Eurostat, World Bank.",
+       colour = "Region",
+       shape = "Region") +
+  theme_classic(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        legend.title = element_text(face = "bold"))
+```
+
+Baltic states saw a great decrease in the first years of the XXI century, followed by a steep increase in the years that followed the 2007-08 financial crisis. In the last 10 years, however, the trend is towards more equitable societies.
+
+Western and Northern Europe had an increasing income inequality on average until early 2000s and late 2000s, respectively. After that period, there has been a reduction of income inequality in the West. In Northern Europe, there was a decrease in income inequality following the peak in the late 00s, but it seems to be increasing again in the last 5-10 years.
+
+Finally, Southern Europe show an increase of income inequality during the 80s and early 90s, with a peak around 1995 and a steady decrease since then. In spite of this, the average income inequality for this region is still far from that of Western, Northern, and Eastern Europe.
+
+```{r, fig.cap="**Figure 6**. Change in Gini index by country."}
+# Evolution of the Gini index by country
+ggplot(data %>%
+         filter(!is.na(gini_index)),
+       aes(x = year, y = gini_index, colour = region)) +
+  geom_line(linewidth = 1) +
+  scale_y_continuous(breaks = c(20, 30, 40)) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  labs(title = "Evolution of the Gini index by country over time",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "Year",
+       y = "Gini index",
+       caption = "Data source: Eurostat, World Bank") +
+  theme_classic(base_size = 11,
+                base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none") +
+  facet_wrap(vars(country))
+```
+
+Looking at the evolution of the Gini index at a country level (figure 6), there are a few with a noteworthy evolution over the years. For example, and in spite of being among the most equitable countries, the income inequality in Nordic countries such as Denmark, Sweden and Finland is greater nowadays than it was in the 90s (figure 6).
+
+```{r, fig.cap="**Figure 6**. Evolution of the Gini index in Denmark, Finland and Sweden."}
+# Gini index evolution in Denmark, Finland and Sweden
+ggplot(data %>%
+         filter(country %in% c("Denmark", "Finland", "Sweden"),
+                !is.na(gini_index)),
+       aes(x = year, y = gini_index, colour = gini_index)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  scale_colour_gradient2(low = "#004529", mid = "yellow", high = "darkred",
+                         midpoint = mean(data_map$gini_index, na.rm = TRUE)) +
+  scale_y_continuous(limits = c(22, 31)) +
+  labs(title = "Evolution of the income inequality in Denmark, Finland and Sweden.",
+       x = "Year",
+       y = "Gini index",
+       colour = "Gini index",
+       caption = "Data source: Eurostat, World Bank.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(legend.position = "right",
+        plot.title = element_text(face = "bold"),
+        legend.title = element_text(face = "bold")) +
+  facet_wrap(vars(country), ncol = 1)
+```
+
+Another country that has seen a significant increase in income inequality in the last few years is Malta (figure 7), with a dramatic increase in the years following the beginning of the COVID-19 pandemic.
+
+```{r, fig.cap="**Figure 7**. Evolution of the Gini index in Malta."}
+# Gini index evolution in Malta
+ggplot(data %>%
+         filter(country == "Malta",
+                !is.na(gini_index)),
+       aes(x = year, y = gini_index, colour = gini_index)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  scale_colour_gradient2(low = "#004529", mid = "yellow", high = "darkred",
+                         midpoint = mean(data_map$gini_index, na.rm = TRUE)) +
+  labs(title = "Evolution of the income inequality in Malta.",
+       x = "Year",
+       y = "Gini index",
+       colour = "Gini index",
+       caption = "Data source: Eurostat, World Bank.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(legend.position = "right",
+        plot.title = element_text(face = "bold"),
+        legend.title = element_text(face = "bold"))
+```
+
+On the other hand, North Macedonia, Serbia and Poland are the countries with a steepest decrease in income inequality in the last years (figure 8).
+
+```{r, fig.cap="**Figure 8**. Evolution of the Gini index in North Macedonia, Poland and Serbia."}
+# Gini index evolution in North Macedonia, Poland, and Serbia
+ggplot(data %>%
+         filter(country %in% c("North Macedonia", "Poland", "Serbia"),
+                !is.na(gini_index)),
+       aes(x = year, y = gini_index, colour = gini_index)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  scale_colour_gradient2(low = "#004529", mid = "yellow", high = "darkred",
+                         midpoint = mean(data_map$gini_index, na.rm = TRUE)) +
+  scale_y_continuous(limits = c(26, 46)) +
+  labs(title = "Evolution of the income inequality in North Macedonia, Poland and Serbia",
+       x = "Year",
+       y = "Gini index",
+       colour = "Gini index",
+       caption = "Data source: Eurostat, World Bank.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(legend.position = "right",
+        plot.title = element_text(face = "bold"),
+        legend.title = element_text(face = "bold")) +
+  facet_wrap(vars(country), ncol = 1)
+```
+
+## Analysis of the income quintile share ratio S80/S20.
+
+The income quintile share ratio S80/S20 the factor that has a higher correlation with the Gini index (see above). Looking at the most recent data, there is clear linear relationship between the 2 variables. Thus, countries with lower income quintile share ratio tend to have also lower income inequality (figure 9).
+
+```{r, message=FALSE, warning=FALSE, fig.cap="**Figure 9**. Relationship between the Gini index and the S80/S20 ratio."}
+# Income quintile share ratio S80/S20 vs. Gini index
+data %>%
+  filter(!is.na(s80s20_ratio)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            s80s20_ratio = first(s80s20_ratio),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  arrange(s80s20_ratio) %>%
+  ggplot(aes(x = s80s20_ratio, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and the S80/S20 ratio.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "Income quintile share ratio S80/S20.",
+       y = "Gini index",
+       caption = "Data for the year 2023 (except for ISL: 2019, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).\nData source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+Slovenia is the country with the lowest income quintile share ratio S80/S20, closely followed by Iceland, Belgium and Czechia (figures 9 and 10). These are also amongst the most equitable countries in Europe. On the other hand, Türkiye is by far the country with a higher ratio, followed by Bulgaria, Lithuania and Latvia, which are amongst the countries with greater income inequality.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 10**. Income quintile share ratio S80/S20."}
+# Income quintile share ratio S80/S20 by country
+data %>%
+  filter(!is.na(s80s20_ratio)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            s80s20_ratio = first(s80s20_ratio),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  arrange(s80s20_ratio) %>%
+  ggplot(aes(x = s80s20_ratio, y = fct_reorder(iso3c, s80s20_ratio, .desc = FALSE),
+             fill = region)) +
+  geom_col() +
+  scale_fill_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.025))) +
+  scale_y_discrete(expand = expansion(mult = c(0.025, 0.025))) +
+  labs(title = "Income quintile share ratio S80/S20",
+       subtitle = "Data for the year 2023 (except for ISL: 2019, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).",
+       x = "Income quintile share ratio S80/S20",
+       y = element_blank(),
+       caption = "Data source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(size = 10),
+        axis.text.y = element_text(size = 8),
+        legend.position = "none")
+```
+
+Countries that have a greater decrease in income inequality, like North Macedonia, Serbia or Poland, have also a significant decrease in the income quintile share ratio S80/S20 over time (figure 11, lower panels), whereas countries where income inequality has increased over the last years show also an increase in the income quintile share ratio S80/S20 (figure 11, upper panels).
+
+```{r, fig.cap="**Figure 11**. Income quintile share ratio S80/S20 over time."}
+# income quintile share ratio S80/S20 over time for selected countries
+ggplot(data %>%
+         filter(country %in% c("Denmark", "Sweden", "Malta", "North Macedonia", "Poland", "Serbia"),
+                !is.na(s80s20_ratio)) %>%
+         mutate(country = factor(country,
+                                 levels = c("Denmark", "Sweden", "Malta",
+                                            "North Macedonia", "Poland", "Serbia"))),
+       aes(x = year, y = s80s20_ratio, colour = region)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  labs(title = "Income quintile share ratio S80/S20 over time",
+       x = "Year",
+       y = "Income quintile share ratio S80/S20",
+       caption = "Data source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        legend.position = "none") +
+  facet_wrap(vars(country))
+```
+
+## People at risk of poverty.
+
+Another factor that highly correlates with income inequality is the percentage of population at risk of poverty. In this project, population at risk of poverty refers to people whose income after social transfers is equal than or below 60% of median equivalised income (after social transfers).
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 12**. Percentage of population at risk of poverty (with income equal or less than 60% of median equivalised income after social transfers)."}
+# People at risk of poverty
+data %>%
+  filter(!is.na(at_risk_poverty)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            at_risk_poverty = first(at_risk_poverty),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = at_risk_poverty, y = fct_reorder(iso3c, at_risk_poverty, .desc = FALSE),
+             fill = region)) +
+  geom_col() +
+  scale_fill_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.025))) +
+  scale_y_discrete(expand = expansion(mult = c(0.025, 0.025))) +
+  labs(title = "% population at risk of poverty",
+       subtitle = "Data for the year 2023 (except for ISL: 2019, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).",
+       x = "% population",
+       y = element_blank(),
+       caption = "Data source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(size = 10),
+        axis.text.y = element_text(size = 8),
+        panel.grid.major.y = element_blank(),
+        legend.text = element_text(size = 7),
+        legend.title = element_blank(),
+        legend.background = element_rect(colour = "black"),
+        legend.position = c(0.9, 0.2))
+```
+
+The Baltic states are, in general, the ones having the highest percentage of population at risk of poverty (figure 12). Latvia and Estonia are the countries with the largest percentage of people at risk, with 22.5% (in 2023), closely followed by Türkiye (22.4% in 2022). On the other end, Nordic countries in general are the ones with the lowest percentage of people at risk of poverty, with Iceland having the lowest rate (9.3% in 2019), followed by Czechia (9.8% in 2023), Norway (11.5% in 2023) and Denmark (11.8% in 2023). An exception to this is Sweden, where 16.1% of population is at risk.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 13**. Relationship between income inequality and the percentage of people at risk of poverty."}
+# Gini index and % population at risk of poverty
+data %>%
+  filter(!is.na(at_risk_poverty)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            at_risk_poverty = first(at_risk_poverty),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = at_risk_poverty, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and the % pop. at risk of poverty.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "% pop. at risk of poverty",
+       y = "Gini index",
+       caption = "Data for the year 2023 (except for ISL: 2019, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).\nData source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+Similar to what happens with the income quintile share ratio S80/S20, there is also a positive linear relationship between the Gini index and the percentage of population at risk of poverty (figure 13). Countries with lower income inequality tend to have a smaller percentage of population at risk of poverty.
+
+## Healthcare.
+
+As shown in figure 3, a higher government expenditure and a higher UHC coverage index in healthcare correlate with lower income inequality.
+
+People in the lower-income bracket usually have limited access to healthcare since they lack the financial resources to face high healthcare-related costs, to afford proper insurance, or live in areas with fewer or limited medical resources. Thus, it is essential that governments develop policies aimed at ensuring affordable and high-quality healthcare services for the entire population, putting special emphasis in those with less resources.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 14**. Government expenditure in healthcare."}
+# governement expenditure in healthcare (% GDP)
+data %>%
+  filter(!is.na(health_exp)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            health_exp = first(health_exp),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = health_exp, y = fct_reorder(iso3c, health_exp, .desc = FALSE),
+             fill = region)) +
+  geom_col() +
+  scale_fill_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.025))) +
+  scale_y_discrete(expand = expansion(mult = c(0.025, 0.025))) +
+  labs(title = "Government expenditure in healthcare (% GDP)",
+       subtitle = "Data for the year 2022.",
+       x = "% GDP",
+       y = element_blank(),
+       caption = "Data source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(size = 10),
+        axis.text.y = element_text(size = 8),
+        panel.grid.major.y = element_blank(),
+        legend.text = element_text(size = 7),
+        legend.title = element_blank(),
+        legend.background = element_rect(colour = "black"),
+        legend.position = c(0.9, 0.2))
+```
+
+Among the countries in the dataset, Austria has the highest government expenditure in healthcare (as % GDP), closely followed by France and Czechia. On the other had, Switzerland is the country with the lowest government expenditure in healthcare (\<2.5% of the GDP), followed by Hungary and Latvia (figure 14).
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 15**. Income inequality vs. government expenditure in healthcare."}
+# Government expenditure in healthcare and Gini index
+data %>%
+  filter(!is.na(health_exp), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            health_exp = first(health_exp),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = health_exp, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and the government expenditure in healthcare.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "% GDP",
+       y = "Gini index",
+       caption = "Data for the year 2022 (except for ISL: 2020).\nData source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+In general, countries with a higher governmental expenditure in healthcare tend to have lower income inequality, as shown in figure 15 (the graph shows the most recent data for each country).
+
+Another factor interlinked with healthcare and reduction of income inequality is the healthcare coverage and quality available to the population.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 16**. Relationship between income inequality and the UHC coverage index."}
+# UHC coverage index and Gini index
+data %>%
+  filter(!is.na(uhc_cov_index), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            uhc_cov_index = first(uhc_cov_index),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = uhc_cov_index, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and the UHC coverage index.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "UHC coverage index",
+       y = "Gini index",
+       caption = "Data for the year 2021 (except for ISL: 2019, GBR: 2017, MKD: 2019).\nData source: Eurostat, WHO.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+The UHC coverage index measures the extent in which a population has access to essential health services, and takes values ranging from 0 for no coverage to 100 for full coverage. Similar to what happens with the government expenditure in healthcare, countries with a higher UHC coverage index tend to have lower income inequality (figure 16).
+
+## Education.
+
+Another factor closely interlinked with income inequality is the education. As showing in figures 3 and 17, education-related variables such as the education index or the mean years of schooling correlated negatively with income inequality.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 17**. Gini index vs. education index (upper panel) and mean years of schooling (lower panel)."}
+# Education index and Gini index
+data %>%
+  filter(!is.na(ed_index), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            ed_index = first(ed_index),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = ed_index, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and the education index.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "Education index",
+       y = "Gini index",
+       caption = "Data for the year 2022 (except for ISL: 2020, GBR: 2018, MKD: 2020).\nData source: Eurostat, UNHDR.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+
+
+# Mean years of schooling and Gini index
+data %>%
+  filter(!is.na(mys), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            mys = first(mys),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = mys, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and mean years of schooling.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "Mean years of schooling",
+       y = "Gini index",
+       caption = "Data for the year 2022 (except for ISL: 2020, GBR: 2018, MKD: 2020).\nData source: Eurostat, UNHDR.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+Education is a key factor in breaking the cycle of poverty, as higher education levels generally lead to better jobs and higher incomes. Facilitating access to education is critical to reduce income inequality and to provide a great opportunity for all citizens to have the change to improve their life conditions. This is especially relevant for low-income families. Thus, government interventions that lead to ensure equitable access to a quality education is critical to ensure that all individuals are able to succeed regardless of their socioeconomic background.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 18**. Governement expenditure in education (upper panel) and its relationship with income inequality (lower panel)."}
+# Government expenditure in education
+data %>%
+  filter(!is.na(education_exp)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            education_exp = first(education_exp),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = education_exp, y = fct_reorder(iso3c, education_exp, .desc = FALSE),
+             fill = region)) +
+  geom_col() +
+  scale_fill_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.025))) +
+  scale_y_discrete(expand = expansion(mult = c(0.025, 0.025))) +
+  labs(title = "Government expenditure in education (% GDP)",
+       subtitle = "Data for the year 2022.",
+       x = "% GDP",
+       y = element_blank(),
+       caption = "Data source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(size = 10),
+        axis.text.y = element_text(size = 8),
+        panel.grid.major.y = element_blank(),
+        legend.text = element_text(size = 7),
+        legend.title = element_blank(),
+        legend.background = element_rect(colour = "black"),
+        legend.position = c(0.9, 0.2))
+
+
+# Government expenditure in education vs. Gini index
+data %>%
+  filter(!is.na(education_exp), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            education_exp = first(education_exp),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = education_exp, y = gini_index, colour = region, shape = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Gini index vs. government expenditure in education.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "% GDP",
+       y = "Gini index",
+       caption = "Data for the year 2022 (except for ISL: 2020).\nData source: Eurostat, UNHDR.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+Sweden, Iceland and Belgium are the countries with a higher governmental expenditure in education as percentage of their GDP, whereas Ireland Romania and Greece are where the government allocates a lower amount of their GDP to education (figure 18, upper panel).
+
+Looking at how this correlates with income inequality using the most recent data for each country, there seems to be a negative correlation, suggesting that a higher education expenditure is related to lower income inequality (even though this correlation is not as strong as others, probably due to the effect of other factors that also determine income inequality).
+
+## Income.
+
+Do citizens living in more equitable societies have a higher income? The analysis in section 5 showed a moderate negative correlation between median income (as well as mean income) and the Gini index (figure 3). When looking at the most recent data, this correlation can be confirmed. In general, countries with lower income inequality tend to have higher median income in PPS (figure 19).
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 19**. Relationship between the median income and income inequality."}
+# Median income and income inequality
+data %>%
+  filter(!is.na(mean_income_pps), !is.na(median_income_pps), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            mean_income_pps = first(mean_income_pps),
+            median_income_pps = first(median_income_pps),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = median_income_pps, y = gini_index, colour = region, shape = region, group = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and median income.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "Median income (PPS)",
+       y = "Gini index",
+       caption = "Data for the year 2023 (except for ISL: 2019, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).\nData source: Eurostat, UNHDR.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+Another observation is the differences in median income between countries, with Western and Northern European countries having the highest median income.
+
+Also, for all countries in the dataset, the mean income is larger than the median income, suggesting skewed income distribution. This effect can be observed to a large extent in countries like Luxembourg, Czechia, Malta, etc. On the other hand, countries like Slovakia, North Macedonia, Serbia, etc. have very little difference between median and mean income (figure 20), suggesting that the income distribution in these countries might follow a curve that is closer to the normal distribution.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 20**. Median and mean income by country."}
+# Income and income inequality
+data %>%
+  filter(!is.na(mean_income_pps), !is.na(median_income_pps), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            mean_income_pps = first(mean_income_pps),
+            median_income_pps = first(median_income_pps),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(y = fct_reorder(iso3c, gini_index, .desc = TRUE))) +
+  geom_segment(aes(x = median_income_pps, xend = mean_income_pps, colour = gini_index), linewidth = 2) +
+  geom_point(aes(x = median_income_pps), colour = "#313695", size = 4) +
+  geom_point(aes(x = mean_income_pps), colour = "#f46d43", size = 4) +
+  scale_colour_gradient2(low = "#004529", mid = "yellow", high = "darkred",
+                         midpoint = 33.5) +
+  labs(title = "<span style=color:#313695>Median</span> and <span style=color:#f46d43>mean</span>
+       income",
+       subtitle = "Countries ordered from lower (up) to greater (low) income inequality.",
+       x = "PPS",
+       y = element_blank(),
+       colour = "Gini index",
+       caption = "Data for the year 2023 (except for ISL: 2019, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).\nData source: Eurostat.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_markdown(face = "bold"),
+        legend.title = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        panel.grid.major.y = element_blank())
+```
+
+## Social protection.
+
+Social protection systems are essential to mitigate the effects of income inequality and to provide a safety net to the most vulnerable members of the society. Social protection policies should be aimed at reducing poverty and providing economic security, thus helping at achieving more equitable societies and promoting social inclusion.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 21**. Population covered by at least one social protection benefit."}
+# % population covered for at least one social protection benefit
+data %>%
+  filter(!is.na(pop_cov), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            pop_cov = first(pop_cov),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = pop_cov, y = fct_reorder(iso3c, pop_cov, .desc = FALSE),
+             fill = region)) +
+  geom_col() +
+  scale_fill_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.025))) +
+  scale_y_discrete(expand = expansion(mult = c(0.025, 0.025))) +
+  labs(title = "% population covered by at least one social protection benefit",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "% population",
+       y = element_blank(),
+       caption = "Data for the year 2022 (DNK, GRC, NOR, POL: 2023; CHE, FRA, LUX, MLT: 2021; MDK: 2020; ISL: 2019; GBR: 2018).\nData source: ILO.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(size = 10),
+        axis.text.y = element_text(size = 8),
+        panel.grid.major.y = element_blank(),
+        legend.position = "none")
+```
+
+In general, Northern and Western European countries are the ones with a larger percentage of population covered by at least one social protection benefit (figure 21), with a large part of them having a 100% coverage.
+
+Southern European countries are, in general, the ones with a lower percentage of the population covered, with North Macedonia having the lowest percentage (\<40%), followed by Türkiye and Serbia.
+
+As shown in figure 3, there seems to be some correlation between the percentage of population covered by at least one social protection system and income inequality. However, it is not the only factor determining income inequality, and several policies targeting different groups of population can be developed to deal with income inequality. This is a very complex topic with different sides, and worth going into with further depth in a different project.
+
+## Human Development Index.
+
+The Human Development Index (HDI) is one of the key indicators used when assessing the overall well-being and development of a population. When calculating the HDI, various components are taken into consideration, such as health, education and standard of living. To account for inequality, the UNDP introduced the inequality-adjusted HDI (iHDI) that takes into account the distribution of income across populations.
+
+```{r, warning=FALSE, message=FALSE, fig.cap="**Figure 22**. Relationship between the Gini index and the inequality-adjusted HDI."}
+# Income inequality and iHDI
+data %>%
+  filter(!is.na(ihdi), !is.na(gini_index)) %>%
+  group_by(iso3c, country) %>%
+  filter(year == max(year)) %>%
+  arrange(iso3c, country, desc(year)) %>%
+  summarise(iso3c = first(iso3c),
+            country = first(country),
+            year = first(year),
+            ihdi = first(ihdi),
+            gini_index = first(gini_index),
+            region = first(region)) %>%
+  ggplot(aes(x = ihdi, y = gini_index, colour = region, shape = region, group = region)) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c("#a50026", "#f46d43", "#fdae61", "#4393c3", "#053061")) +
+  scale_shape_manual(values = c(15:18, 8)) +
+  labs(title = "Relationship between the Gini index and the iHDI.",
+       subtitle = "Regions: <span style=color:#a50026>**Baltic states**</span>, 
+       <span style=color:#f46d43>**Eastern**</span>, <span style=color:#fdae61>**Northern**</span>, 
+       <span style=color:#4393c3>**Southern**</span>, and
+       <span style=color:#053061>**Western**</span> Europe.",
+       x = "Inequality-adjusted HDI",
+       y = "Gini index",
+       caption = "Data for the year 2022 (except for ISL: 2020, GBR: 2018, MKD: 2020, CHE: 2022, TUR: 2022).\nData source: Eurostat, UNHDR.") +
+  theme_bw(base_size = 11,
+           base_family = "sans") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_markdown(),
+        legend.position = "none")
+```
+
+As shown in figure 3, there is a moderate negative correlation between the Gini index and the inequality-adjusted HDI. This correlation follows somehow a linear trend, with more equitable countries having in general a higher iHDI (figure 22), with Northern Europe being the region with a highest iHDI, followed by Western Europe.
+
+# Conclusions.
+
+The analysis of income inequality in EU and neighbouring countries reveals significant disparities closely tied to different socioeconomic factors, such as the following:
+
+-   In the year 2023, Slovakia was the country with the lowest income inequality (Gini index: 21.6), while Bulgaria had the highest (Gini index: 37.2). However, it is likely that the country with the highest income inequality in 2023 was Türkiye (data for 2023 not available, Gini index in 2022: 45.3).
+
+-   At a regional level, Nordic and Central European countries had lower income inequality, while the Baltic states and Southern European countries had higher income inequality.
+
+-   The income quintile share ratio S80/S20, percentage of population at risk of poverty, population exposed to material and social deprivation, unemployment rates, etc. are the variables with a stronger positive correlation with income inequality.
+
+-   On the other hand, the Human Development Index, healthcare-related factors such as UHC coverage index and government expenditure in healthcare, and education-related factors such as literacy rate and mean years of schooling correlate negatively with income inequality.
+
+-   In general, countries with lower income inequality tend to have higher median and mean income.
+
+-   Income inequality has generally decreased over the last 10-15 years for most regions, especially in Western and Eastern European countries. An exception to this is Northern European countries, where there has been an increase in recent years.
+
+-   Malta, Denmark and Sweden are among the countries where income inequality has increased over time, whereas in North Macedonia, Poland and Serbia income inequality has decreased.
+
+Income inequality is the result of the interplay of various different socioeconomic factors, many of them interlinked. In general, reducing income inequality requires the design and implementation of policies aimed at developing accessible and high-quality healthcare and education systems, along with adequate social protection and wealth redistribution through progressive taxation. These measures are crucial to mitigate the effects of income inequality and build more equitable societies, which will positively impact general well-being and result in more developed societies.
